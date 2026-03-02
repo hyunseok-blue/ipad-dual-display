@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Display Command — iPad Dual Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --mac-blue: #007AFF;
+            --mac-green: #34C759;
+            --mac-red: #FF3B30;
+            --mac-orange: #FF9F0A;
+            --bg-obsidian: #050505;
+            --surface-glass: rgba(255, 255, 255, 0.04);
+            --border-glass: rgba(255, 255, 255, 0.08);
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-obsidian);
+            color: #F5F5F7;
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+        .glass {
+            background: var(--surface-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+        }
+        .glass-card {
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        .mode-active {
+            border-color: var(--mac-blue) !important;
+            background: rgba(0, 122, 255, 0.05) !important;
+            box-shadow: 0 0 30px rgba(0, 122, 255, 0.15);
+        }
+
+        /* Display nodes */
+        .display-node {
+            border: 2px solid var(--border-glass);
+            border-radius: 10px;
+            position: relative;
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .display-node.active {
+            border-color: var(--mac-green);
+            box-shadow: 0 0 20px rgba(52, 199, 89, 0.2);
+        }
+        .display-node.active::after {
+            content: '';
+            position: absolute;
+            top: -4px; right: -4px;
+            width: 10px; height: 10px;
+            background: var(--mac-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--mac-green);
+        }
+        .screen-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            overflow: hidden;
+        }
+        .active .screen-content {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+
+        /* Connection lines */
+        .conn-line {
+            position: absolute;
+            background: var(--border-glass);
+            transition: background 0.6s;
+        }
+        .conn-line.active { background: var(--mac-green); box-shadow: 0 0 6px rgba(52,199,89,0.3); }
+
+        /* Log panel */
+        .log-panel {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-panel::-webkit-scrollbar { width: 4px; }
+        .log-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+        @keyframes pulse-glow { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        .animate-float { animation: float 4s ease-in-out infinite; }
+        .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+        @keyframes fadeInUp {
+            from { opacity:0; transform:translateY(16px); }
+            to { opacity:1; transform:translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.5s ease-out both; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 lg:p-10">
+
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto flex justify-between items-center mb-10">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white mb-1">Display Command</h1>
+            <div class="flex items-center gap-2 text-sm text-gray-400">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-gray-600"></span>
+                <span id="status-text">Loading...</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="refreshStatus()" class="glass px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-white/10 transition">
+                <i class="fa-solid fa-arrows-rotate text-blue-400"></i> <span class="hidden sm:inline">Refresh</span>
+            </button>
+            <button onclick="toggleWizard()" class="glass px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-white/10 transition">
+                <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i> <span class="hidden sm:inline">Wizard</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+
+        <!-- Left: Mode Selection -->
+        <section class="lg:col-span-4 space-y-4">
+            <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Connection Mode</h2>
+
+            <div id="mode-duet" onclick="selectMode('duet')" class="glass glass-card p-5 rounded-2xl cursor-pointer">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                        <i class="fa-solid fa-bolt text-blue-500"></i>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded bg-blue-500/20 text-blue-400 uppercase">Recommended</span>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-1">Sidecar + Duet</h3>
+                <p class="text-sm text-gray-400 leading-relaxed mb-3">최고 안정성. iPad 구형을 USB로 유선 연결합니다.</p>
+                <div class="flex gap-3 text-[11px] font-medium">
+                    <span class="text-green-400"><i class="fa-solid fa-check mr-1"></i>초저지연</span>
+                    <span class="text-orange-400"><i class="fa-solid fa-dollar-sign mr-1"></i>$3.99/월</span>
+                </div>
+            </div>
+
+            <div id="mode-betterdisplay" onclick="selectMode('betterdisplay')" class="glass glass-card p-5 rounded-2xl cursor-pointer">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                        <i class="fa-solid fa-display text-purple-500"></i>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded bg-purple-500/20 text-purple-400 uppercase">One-time</span>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-1">Sidecar + VNC</h3>
+                <p class="text-sm text-gray-400 leading-relaxed mb-3">가상 디스플레이 + VNC. 해상도 자유 설정 가능.</p>
+                <div class="flex gap-3 text-[11px] font-medium">
+                    <span class="text-green-400"><i class="fa-solid fa-check mr-1"></i>커스텀 해상도</span>
+                    <span class="text-blue-400"><i class="fa-solid fa-tag mr-1"></i>$18 일회성</span>
+                </div>
+            </div>
+
+            <div id="mode-universal" onclick="selectMode('universal')" class="glass glass-card p-5 rounded-2xl cursor-pointer">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-pointer text-emerald-500"></i>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 uppercase">Free</span>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-1">Universal Control</h3>
+                <p class="text-sm text-gray-400 leading-relaxed mb-3">무료. 키보드/마우스 공유만 (창 이동 불가).</p>
+                <div class="flex gap-3 text-[11px] font-medium">
+                    <span class="text-green-400"><i class="fa-solid fa-check mr-1"></i>Apple 공식</span>
+                    <span class="text-gray-500"><i class="fa-solid fa-ban mr-1"></i>확장 디스플레이 아님</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Visualizer + Controls -->
+        <section class="lg:col-span-8 space-y-6">
+
+            <!-- Display Diagram -->
+            <div class="glass rounded-3xl p-6 md:p-10 relative overflow-hidden" style="min-height:380px">
+                <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,122,255,0.04),transparent)] pointer-events-none"></div>
+
+                <div class="relative w-full flex items-center justify-center" style="height:280px">
+
+                    <!-- iPad 1 — Sidecar (Left) -->
+                    <div id="node-ipad1" class="display-node absolute left-2 md:left-8 w-24 md:w-28 animate-float" style="height:160px;animation-delay:-1s">
+                        <div class="screen-content w-full h-full rounded-lg flex flex-col items-center justify-center gap-1 p-2">
+                            <i class="fa-solid fa-tablet-screen-button text-xl text-gray-600"></i>
+                            <span class="text-[9px] font-bold text-gray-500 uppercase">iPad M1</span>
+                            <span class="text-[8px] text-gray-600">Sidecar</span>
+                        </div>
+                    </div>
+
+                    <!-- Connection line left -->
+                    <div id="line-left" class="conn-line absolute" style="left:calc(7rem + 16px);top:50%;width:40px;height:2px;transform:translateY(-1px)"></div>
+
+                    <!-- MacBook (Center) -->
+                    <div id="node-macbook" class="display-node active w-44 md:w-52" style="height:130px">
+                        <div class="screen-content w-full h-full rounded-lg flex flex-col items-center justify-center gap-1 relative">
+                            <i class="fa-brands fa-apple text-3xl text-white/15"></i>
+                            <span class="text-[10px] font-semibold text-gray-400">MacBook M1</span>
+                            <div class="absolute bottom-2 left-3 right-3 h-1 bg-blue-500/20 rounded-full overflow-hidden">
+                                <div id="macbook-bar" class="h-full bg-blue-500 rounded-full transition-all duration-700" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="absolute -bottom-2 -left-5 -right-5 h-2 bg-gray-800 rounded-full"></div>
+                    </div>
+
+                    <!-- Connection line right -->
+                    <div id="line-right" class="conn-line absolute" style="right:calc(7rem + 16px);top:50%;width:40px;height:2px;transform:translateY(-1px)"></div>
+
+                    <!-- iPad 2 — Secondary (Right) -->
+                    <div id="node-ipad2" class="display-node absolute right-2 md:right-8 w-24 md:w-28 animate-float" style="height:160px;animation-delay:-3s">
+                        <div class="screen-content w-full h-full rounded-lg flex flex-col items-center justify-center gap-1 p-2">
+                            <i class="fa-solid fa-tablet text-xl text-gray-600"></i>
+                            <span class="text-[9px] font-bold text-gray-500 uppercase">iPad 구형</span>
+                            <span id="ipad2-label" class="text-[8px] text-gray-600">Duet</span>
+                        </div>
+                    </div>
+
+                    <!-- Monitor (Top) -->
+                    <div id="node-monitor" class="display-node absolute top-0 w-40 md:w-48" style="height:100px">
+                        <div class="screen-content w-full h-full rounded-lg flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-desktop text-xl text-gray-600"></i>
+                            <span class="text-[9px] font-bold text-gray-500 uppercase">외부 모니터</span>
+                        </div>
+                        <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 w-10 h-3 bg-gray-800 rounded-b-lg"></div>
+                    </div>
+
+                    <!-- Connection line top -->
+                    <div id="line-top" class="conn-line absolute" style="top:100px;left:50%;width:2px;height:24px;transform:translateX(-1px)"></div>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex justify-center gap-6 mt-4">
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-xs text-gray-400">Connected</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-gray-600"></span><span class="text-xs text-gray-400">Standby</span></div>
+                    <div id="display-count" class="text-xs text-gray-500 ml-4"></div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <button id="btn-start" onclick="doStart()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-3 text-sm md:text-base">
+                    <i class="fa-solid fa-play"></i> Start Setup
+                </button>
+                <button id="btn-stop" onclick="doStop()" class="px-6 md:px-8 bg-white/5 hover:bg-red-500/10 hover:text-red-400 text-gray-400 font-bold py-4 rounded-2xl border border-white/10 transition-all flex items-center justify-center gap-3 text-sm md:text-base">
+                    <i class="fa-solid fa-power-off"></i> Stop
+                </button>
+            </div>
+
+            <!-- Log Panel -->
+            <div id="log-container" class="glass rounded-2xl p-4 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500">Activity Log</h3>
+                    <button onclick="clearLog()" class="text-xs text-gray-500 hover:text-gray-300 transition">Clear</button>
+                </div>
+                <div id="log-panel" class="log-panel text-gray-400"></div>
+            </div>
+
+            <!-- Display Status -->
+            <div id="displays-panel" class="glass rounded-2xl p-5">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Connected Displays</h3>
+                <div id="displays-list" class="space-y-2 text-sm text-gray-400">
+                    <div class="text-gray-600">Scanning...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Wizard Modal -->
+    <div id="wizard" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-md" onclick="toggleWizard()"></div>
+        <div class="glass max-w-lg w-full rounded-3xl p-6 md:p-8 relative z-10 fade-in">
+            <h2 class="text-xl font-bold mb-6">Setup Wizard</h2>
+            <div class="space-y-3" id="wizard-steps">
+                <div class="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold shrink-0">1</div>
+                    <div>
+                        <h4 class="font-semibold text-sm">의존성 설치</h4>
+                        <p class="text-xs text-gray-400 mt-1">Homebrew & displayplacer가 필요합니다.</p>
+                        <code class="text-xs text-blue-400 mt-1 block">brew install displayplacer</code>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold shrink-0">2</div>
+                    <div>
+                        <h4 class="font-semibold text-sm">Sidecar 연결</h4>
+                        <p class="text-xs text-gray-400 mt-1">iPad M1을 Sidecar로 연결하세요. 같은 Apple ID, Wi-Fi + Bluetooth ON.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold shrink-0">3</div>
+                    <div>
+                        <h4 class="font-semibold text-sm">보조 iPad 연결</h4>
+                        <p class="text-xs text-gray-400 mt-1">선택한 모드에 따라 Duet / VNC / Universal Control로 연결.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="runInit()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors text-sm">
+                    <i class="fa-solid fa-rocket mr-2"></i>자동 초기 설정 실행
+                </button>
+                <button onclick="toggleWizard()" class="px-6 bg-white/10 hover:bg-white/15 text-gray-300 font-bold py-3 rounded-xl transition-colors text-sm">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const API = '';
+    let currentMode = '';
+    let isRunning = false;
+    let pollTimer = null;
+
+    // ── API ─────────────────────────────────
+    async function api(method, path, body) {
+        const opts = { method, headers: {'Content-Type':'application/json'} };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(API + path, opts);
+        return res.json();
+    }
+
+    // ── Status ──────────────────────────────
+    async function refreshStatus() {
+        try {
+            const [status, config] = await Promise.all([
+                api('GET', '/api/status'),
+                api('GET', '/api/config')
+            ]);
+
+            // Update mode
+            if (config.mode) {
+                currentMode = config.mode;
+                highlightMode(currentMode);
+            }
+
+            // Update displays
+            renderDisplays(status);
+
+            // Update header
+            const dot = document.getElementById('status-dot');
+            const txt = document.getElementById('status-text');
+            if (status.count >= 3) {
+                dot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse-glow';
+                txt.textContent = `${status.count} Displays Active`;
+            } else if (status.count >= 2) {
+                dot.className = 'w-2 h-2 rounded-full bg-yellow-500';
+                txt.textContent = `${status.count} Displays Connected`;
+            } else {
+                dot.className = 'w-2 h-2 rounded-full bg-gray-600';
+                txt.textContent = `${status.count} Display`;
+            }
+
+            // Update diagram nodes
+            updateDiagram(status.count);
+            document.getElementById('display-count').textContent = `${status.count} displays detected`;
+
+        } catch(e) {
+            document.getElementById('status-text').textContent = 'Server offline';
+        }
+    }
+
+    function renderDisplays(status) {
+        const list = document.getElementById('displays-list');
+        if (!status.displays || status.displays.length === 0) {
+            list.innerHTML = '<div class="text-gray-600">No displays detected</div>';
+            return;
+        }
+        list.innerHTML = status.displays.map((d, i) => {
+            if (d.error) return `<div class="text-red-400 text-xs">${d.error}</div>`;
+            const isMain = d.main ? '<span class="text-blue-400 text-[10px] ml-2">MAIN</span>' : '';
+            const online = d.online !== false ? 'bg-green-500' : 'bg-gray-600';
+            return `
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02]">
+                    <span class="w-2 h-2 rounded-full ${online} shrink-0"></span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm text-gray-200 truncate">${d.type || 'Display ' + (i+1)}${isMain}</div>
+                        <div class="text-xs text-gray-500">${d.resolution || 'Unknown resolution'}</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function updateDiagram(count) {
+        const bar = document.getElementById('macbook-bar');
+        const nodes = {
+            monitor: document.getElementById('node-monitor'),
+            ipad1: document.getElementById('node-ipad1'),
+            ipad2: document.getElementById('node-ipad2'),
+        };
+        const lines = {
+            top: document.getElementById('line-top'),
+            left: document.getElementById('line-left'),
+            right: document.getElementById('line-right'),
+        };
+
+        // Activate nodes based on display count
+        if (count >= 2) {
+            nodes.monitor.classList.add('active');
+            lines.top.classList.add('active');
+        }
+        if (count >= 3) {
+            nodes.ipad1.classList.add('active');
+            lines.left.classList.add('active');
+        }
+        if (count >= 4) {
+            nodes.ipad2.classList.add('active');
+            lines.right.classList.add('active');
+        }
+        bar.style.width = Math.min(100, (count / 4) * 100) + '%';
+    }
+
+    // ── Mode selection ──────────────────────
+    function selectMode(mode) {
+        if (isRunning) return;
+        currentMode = mode;
+        highlightMode(mode);
+        api('POST', '/api/mode', { mode });
+
+        const labels = { duet: 'Duet', betterdisplay: 'VNC', universal: 'U-Control' };
+        document.getElementById('ipad2-label').textContent = labels[mode] || mode;
+
+        addLog(`Mode changed to: ${mode}`);
+    }
+
+    function highlightMode(mode) {
+        document.querySelectorAll('.glass-card').forEach(c => c.classList.remove('mode-active'));
+        const el = document.getElementById('mode-' + mode);
+        if (el) el.classList.add('mode-active');
+    }
+
+    // ── Actions ─────────────────────────────
+    async function doStart() {
+        if (isRunning) return;
+        isRunning = true;
+        setBtnState('starting');
+        addLog('Starting setup sequence...');
+
+        try {
+            const res = await api('POST', '/api/start');
+            if (res.task_id) pollTask(res.task_id, 'start');
+        } catch(e) {
+            addLog('ERROR: ' + e.message);
+            setBtnState('idle');
+            isRunning = false;
+        }
+    }
+
+    async function doStop() {
+        setBtnState('stopping');
+        addLog('Stopping all connections...');
+
+        try {
+            const res = await api('POST', '/api/stop');
+            if (res.task_id) pollTask(res.task_id, 'stop');
+        } catch(e) {
+            addLog('ERROR: ' + e.message);
+            setBtnState('idle');
+        }
+    }
+
+    async function runInit() {
+        addLog('Running initial setup...');
+        try {
+            const res = await api('POST', '/api/init');
+            if (res.task_id) pollTask(res.task_id, 'init');
+        } catch(e) {
+            addLog('ERROR: ' + e.message);
+        }
+    }
+
+    // ── Task polling ────────────────────────
+    function pollTask(taskId, action) {
+        const check = async () => {
+            try {
+                const t = await api('GET', `/api/task/${taskId}`);
+                if (t.output) {
+                    const lines = t.output.trim().split('\n');
+                    const last = lines[lines.length - 1];
+                    addLog(last.replace(/\x1b\[[0-9;]*m/g, '').replace(/^\[.*?\]\s*/, ''));
+                }
+                if (t.status === 'done') {
+                    addLog(`${action} completed successfully`);
+                    if (action === 'stop') {
+                        isRunning = false;
+                        resetDiagram();
+                    } else {
+                        isRunning = action === 'start';
+                    }
+                    setBtnState(isRunning ? 'connected' : 'idle');
+                    refreshStatus();
+                    return;
+                }
+                if (t.status === 'error') {
+                    addLog(`${action} failed (exit code: ${t.code})`);
+                    isRunning = false;
+                    setBtnState('idle');
+                    refreshStatus();
+                    return;
+                }
+                setTimeout(check, 1500);
+            } catch(e) {
+                addLog('Poll error: ' + e.message);
+                isRunning = false;
+                setBtnState('idle');
+            }
+        };
+        setTimeout(check, 1000);
+    }
+
+    function resetDiagram() {
+        ['node-monitor','node-ipad1','node-ipad2'].forEach(id =>
+            document.getElementById(id).classList.remove('active'));
+        ['line-top','line-left','line-right'].forEach(id =>
+            document.getElementById(id).classList.remove('active'));
+        document.getElementById('macbook-bar').style.width = '0%';
+    }
+
+    // ── Button states ───────────────────────
+    function setBtnState(state) {
+        const btn = document.getElementById('btn-start');
+        const states = {
+            idle: { html: '<i class="fa-solid fa-play"></i> Start Setup', cls: 'bg-blue-600 hover:bg-blue-500' },
+            starting: { html: '<i class="fa-solid fa-circle-notch animate-spin"></i> Connecting...', cls: 'bg-blue-800' },
+            connected: { html: '<i class="fa-solid fa-check"></i> Connected', cls: 'bg-green-600 hover:bg-green-500' },
+            stopping: { html: '<i class="fa-solid fa-circle-notch animate-spin"></i> Stopping...', cls: 'bg-gray-700' },
+        };
+        const s = states[state] || states.idle;
+        btn.innerHTML = s.html;
+        btn.className = `flex-1 ${s.cls} text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-3 text-sm md:text-base`;
+    }
+
+    // ── Log ─────────────────────────────────
+    function addLog(msg) {
+        const container = document.getElementById('log-container');
+        const panel = document.getElementById('log-panel');
+        container.classList.remove('hidden');
+        const time = new Date().toLocaleTimeString('en', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        panel.innerHTML += `<div><span class="text-gray-600">${time}</span> ${msg}</div>`;
+        panel.scrollTop = panel.scrollHeight;
+    }
+    function clearLog() {
+        document.getElementById('log-panel').innerHTML = '';
+        document.getElementById('log-container').classList.add('hidden');
+    }
+
+    // ── Wizard ──────────────────────────────
+    function toggleWizard() {
+        document.getElementById('wizard').classList.toggle('hidden');
+    }
+
+    // ── Init ────────────────────────────────
+    refreshStatus();
+    setInterval(refreshStatus, 10000);
+
+    // Staggered card entrance
+    document.querySelectorAll('.glass-card').forEach((c, i) => {
+        c.style.opacity = '0';
+        c.style.transform = 'translateY(12px)';
+        setTimeout(() => {
+            c.style.transition = 'all 0.5s cubic-bezier(0.23, 1, 0.32, 1)';
+            c.style.opacity = '1';
+            c.style.transform = 'translateY(0)';
+        }, 150 * i);
+    });
+    </script>
+</body>
+</html>
