@@ -40,23 +40,57 @@ def _display_info() -> dict:
             timeout=10,
             text=True,
         )
-        current: dict = {}
+        current: dict | None = None
+        in_displays = False
         for line in raw.splitlines():
+            indent = len(line) - len(line.lstrip())
             stripped = line.strip()
-            if "Display Type:" in stripped:
+
+            # "Displays:" section header
+            if stripped == "Displays:":
+                in_displays = True
+                continue
+
+            if not in_displays:
+                continue
+
+            # Display name header (e.g. "Color LCD:", "Sidecar Display:")
+            # Indent=8, ends with ":", no second ":" in value
+            if indent == 8 and stripped.endswith(":") and ":" not in stripped[:-1]:
                 if current:
                     displays.append(current)
-                current = {"type": stripped.split(":", 1)[1].strip()}
-            elif "Resolution:" in stripped and current:
-                current["resolution"] = stripped.split(":", 1)[1].strip()
-            elif "Main Display:" in stripped and current:
-                current["main"] = "Yes" in stripped
-            elif "Mirror:" in stripped and current:
-                current["mirror"] = stripped.split(":", 1)[1].strip()
-            elif "Online:" in stripped and current:
-                current["online"] = "Yes" in stripped
+                current = {"name": stripped[:-1]}
+                continue
+
+            # Properties of current display (indent >= 10)
+            if current and indent >= 10 and ":" in stripped:
+                key, _, val = stripped.partition(":")
+                val = val.strip()
+                key_l = key.strip().lower()
+                if key_l == "display type":
+                    current["type"] = val
+                elif key_l == "resolution" and "resolution" not in current:
+                    current["resolution"] = val
+                elif key_l == "main display":
+                    current["main"] = val == "Yes"
+                elif key_l == "mirror":
+                    current["mirror"] = val
+                elif key_l == "online":
+                    current["online"] = val == "Yes"
+                elif key_l == "connection type":
+                    current["connection"] = val
+
+            # Exit displays section on lower indent non-empty line
+            if indent <= 4 and stripped and stripped != "Displays:":
+                in_displays = False
+
         if current:
             displays.append(current)
+
+        # Use name as fallback type
+        for d in displays:
+            if "type" not in d:
+                d["type"] = d.get("name", "Unknown Display")
     except Exception as exc:
         displays = [{"error": str(exc)}]
 
@@ -143,6 +177,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self._json_response(info)
             else:
                 self._json_response({"error": "task not found"}, 404)
+        elif path.startswith("/api/"):
+            self._json_response({"error": "not found"}, 404)
         else:
             # Serve static files from script dir
             super().do_GET()
